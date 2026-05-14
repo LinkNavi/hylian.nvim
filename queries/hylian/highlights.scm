@@ -2,14 +2,13 @@
 
 ; ── Keywords ─────────────────────────────────────────────────────────────────
 
-"return"   @keyword.return
-
 [
   "if"
   "else"
   "while"
   "for"
   "in"
+  "return"
   "break"
   "continue"
   "defer"
@@ -21,19 +20,16 @@
 [
   "unsafe"
   "volatile"
-] @keyword
+] @keyword.unsafe
 
 [
   "class"
+  "public"
+  "private"
   "enum"
 ] @keyword.type
 
-[
-  "public"
-  "private"
-] @keyword.modifier
-
-[ "static" "const" ] @keyword.modifier
+[ "static" ] @keyword.modifier
 
 [
   "new"
@@ -55,6 +51,9 @@
   "str"
   "bool"
   "void"
+  "float"
+  "float32"
+  "float64"
   "Error"
   "array"
   "multi"
@@ -118,7 +117,7 @@
 
 ((call_expr
   function: (identifier) @function.builtin)
- (#any-of? @function.builtin "print" "panic" "Err" "len" "push" "pop" "exit"))
+ (#match? @function.builtin "^(print|panic|Err|len|push|pop|exit)$"))
 
 ; ── Variables ─────────────────────────────────────────────────────────────────
 
@@ -173,6 +172,7 @@
 [ "{" "}" ] @punctuation.bracket
 [ "(" ")" ] @punctuation.bracket
 [ "[" "]" ] @punctuation.bracket
+[ "<" ">" ] @punctuation.bracket
 
 [ "." "," ";" ":" ] @punctuation.delimiter
 
@@ -195,9 +195,9 @@
 ; ── Modules / include paths ───────────────────────────────────────────────────
 
 (module_path
-  (identifier) @module)
+  (identifier) @namespace)
 
 ; ── Inline assembly ───────────────────────────────────────────────────────────
 
-(asm_block)   @none
-(asm_content) @string.special
+(asm_block)   @embedded
+(asm_content) @string.special.symbol

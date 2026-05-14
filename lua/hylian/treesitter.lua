@@ -13,9 +13,9 @@
 local M = {}
 
 local INSTALL_INFO = {
-  url    = "https://github.com/LinkNavi/tree-sitter-hylian",
-  branch = "master",
-  files  = { "src/parser.c" },
+  url      = "https://github.com/LinkNavi/tree-sitter-hylian",
+  revision = "a9af1c3e5c5924862e6b139ff6f7e49c05165885",
+  files    = { "src/parser.c" },
   generate_requires_npm          = false,
   requires_generate_from_grammar = false,
 }
