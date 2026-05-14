@@ -3,8 +3,8 @@
 Neovim support for the [Hylian](https://hylian-lang.com) programming language.
 
 - **Filetype detection** — `*.hy` → `hylian`
-- **Tree-sitter** — syntax highlighting, indentation, folds, locals (via [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) + [tree-sitter-hylian](https://github.com/LinkNavi/tree-sitter-hylian))
-- **LSP** — diagnostics, hover, completion via `hylian-lsp` (uses nvim-lspconfig when available, falls back to bare `vim.lsp.start`)
+- **Tree-sitter** — syntax highlighting, indentation, folds, locals
+- **LSP** — diagnostics, hover, completion via `hylian-lsp`
 
 ---
 
@@ -13,68 +13,77 @@ Neovim support for the [Hylian](https://hylian-lang.com) programming language.
 | | |
 |---|---|
 | Neovim ≥ 0.10 | |
-| `hylian-lsp` on `$PATH` | [Build & install instructions](https://github.com/LinkNavi/Hylian/tree/main/lsp#installing) |
+| `hylian-lsp` on `$PATH` | See [building the LSP](#building-hylian-lsp) below |
 | [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | Optional — for syntax highlighting |
-| [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) | Optional — used when present |
+| [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) | Optional — used when present, otherwise falls back to bare `vim.lsp.start` |
 
 ---
 
-## Installation
+## lazy.nvim setup
 
-### lazy.nvim — zero config
-
-Just drop this in your plugin list. As long as `hylian-lsp` is on `$PATH` and
-nvim-treesitter is installed, everything works automatically.
+### Minimal — zero config
 
 ```lua
 { "LinkNavi/hylian.nvim" }
 ```
 
-After adding the plugin, install the tree-sitter parser once:
+Then install the tree-sitter parser once inside Neovim:
 
 ```
 :TSInstall hylian
 ```
 
+That's it. As long as `hylian-lsp` is on `$PATH` and nvim-treesitter is
+installed, LSP and highlighting will work automatically on any `.hy` file.
+
 ---
 
-### lazy.nvim — with options
+### Full config with keymaps and nvim-cmp
+
+Add this to your lazy plugin list (e.g. in `~/.config/nvim/lua/plugins/hylian.lua`):
 
 ```lua
-{
+return {
   "LinkNavi/hylian.nvim",
+  ft = "hylian",   -- only load when a .hy file is opened
+  dependencies = {
+    "nvim-treesitter/nvim-treesitter",
+    "neovim/nvim-lspconfig",
+  },
   config = function()
     require("hylian").setup({
-      -- Path to the binary (default: "hylian-lsp", assumed on $PATH)
+      -- LSP binary — "hylian-lsp" assumes it is on $PATH
       cmd = { "hylian-lsp" },
 
-      -- nvim-cmp / blink.cmp capabilities
+      -- Pass nvim-cmp (or blink.cmp) capabilities for better completions
       capabilities = require("cmp_nvim_lsp").default_capabilities(),
 
-      -- Keymaps / extra config when the LSP attaches
+      -- Keymaps set when the LSP attaches to a Hylian buffer
       on_attach = function(_, bufnr)
-        local map = function(k, f) vim.keymap.set("n", k, f, { buffer = bufnr }) end
-        map("K",           vim.lsp.buf.hover)
-        map("gd",          vim.lsp.buf.definition)
-        map("gr",          vim.lsp.buf.references)
-        map("<leader>ca",  vim.lsp.buf.code_action)
-        map("<leader>rn",  vim.lsp.buf.rename)
+        local map = function(keys, fn)
+          vim.keymap.set("n", keys, fn, { buffer = bufnr, silent = true })
+        end
+        map("K",          vim.lsp.buf.hover)
+        map("gd",         vim.lsp.buf.definition)
+        map("gr",         vim.lsp.buf.references)
+        map("gi",         vim.lsp.buf.implementation)
+        map("<leader>ca", vim.lsp.buf.code_action)
+        map("<leader>rn", vim.lsp.buf.rename)
+        map("<leader>d",  vim.diagnostic.open_float)
+        map("[d",         vim.diagnostic.goto_prev)
+        map("]d",         vim.diagnostic.goto_next)
       end,
     })
   end,
 }
 ```
 
----
-
-### nvim-treesitter — ensure_installed
-
-Add `"hylian"` to your nvim-treesitter config to keep the parser up to date
-automatically:
+Then add `"hylian"` to your nvim-treesitter `ensure_installed` list so the
+parser is kept up to date automatically:
 
 ```lua
 require("nvim-treesitter.configs").setup({
-  ensure_installed = { "hylian", ... },
+  ensure_installed = { "hylian", "lua", "c", ... },
   highlight        = { enable = true },
   indent           = { enable = true },
 })
@@ -82,22 +91,20 @@ require("nvim-treesitter.configs").setup({
 
 ---
 
-## Options
-
-All options are optional. Defaults are shown.
+## All options
 
 ```lua
 require("hylian").setup({
-  -- LSP binary + args
+  -- LSP binary + args (default: "hylian-lsp" on $PATH)
   cmd = { "hylian-lsp" },
 
-  -- Markers used to find the project root by walking upward
+  -- Markers used to walk upward and find the project root
   root_markers = { "linkle.hy", ".git" },
 
-  -- Extra LSP client capabilities (e.g. from nvim-cmp)
+  -- Extra LSP client capabilities table (e.g. from nvim-cmp)
   capabilities = nil,
 
-  -- Callback fired when hylian-lsp attaches to a buffer
+  -- Called when hylian-lsp attaches to a buffer
   on_attach = nil,
 
   -- Set to false to skip tree-sitter parser registration
@@ -107,25 +114,7 @@ require("hylian").setup({
 
 ---
 
-## Troubleshooting
-
-**No syntax highlighting after `:TSInstall hylian`**
-
-Run `:TSBufInfo` and check that the `hylian` parser is listed and active for
-the current buffer. Make sure `highlight.enable = true` in your
-nvim-treesitter config.
-
-**LSP not attaching**
-
-- `:set ft?` should print `filetype=hylian` — if not, the ftdetect isn't loading.
-- `:LspInfo` (or `:lua vim.print(vim.lsp.get_clients())`) shows active clients.
-- Make sure `hylian-lsp` is executable: `which hylian-lsp`.
-- A `linkle.hy` or `.git` directory must exist somewhere above the file so a
-  root can be resolved.
-
-**hylian-lsp not found**
-
-Build and install the server:
+## Building hylian-lsp
 
 ```sh
 git clone https://github.com/LinkNavi/Hylian
@@ -133,3 +122,19 @@ cd Hylian/lsp
 bash build.sh
 sudo cp hylian-lsp /usr/local/bin/hylian-lsp
 ```
+
+---
+
+## Troubleshooting
+
+**No syntax highlighting after `:TSInstall hylian`**
+
+Run `:TSBufInfo` to confirm the parser is active. Make sure
+`highlight = { enable = true }` is set in your nvim-treesitter config.
+
+**LSP not attaching**
+
+- `:set ft?` should show `filetype=hylian`. If not, the `ftdetect` isn't loading — check `:scriptnames` for `ftdetect/hylian.vim`.
+- `which hylian-lsp` must return a path.
+- A `linkle.hy` or `.git` directory must exist somewhere above the file so a project root can be found.
+- `:LspInfo` shows what is (or isn't) attached to the current buffer.
