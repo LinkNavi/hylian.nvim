@@ -15,7 +15,6 @@ Neovim support for the [Hylian](https://hylian-lang.com) programming language.
 | Neovim ≥ 0.10 | |
 | `hylian-lsp` on `$PATH` | See [building the LSP](#building-hylian-lsp) below |
 | [nvim-treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | Optional — for syntax highlighting |
-| [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig) | Optional — used when present, otherwise falls back to bare `vim.lsp.start` |
 
 ---
 
@@ -48,7 +47,6 @@ return {
   ft = "hylian",   -- only load when a .hy file is opened
   dependencies = {
     "nvim-treesitter/nvim-treesitter",
-    "neovim/nvim-lspconfig",
   },
   config = function()
     require("hylian").setup({
