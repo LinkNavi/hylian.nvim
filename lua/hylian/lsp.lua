@@ -1,7 +1,11 @@
 -- lua/hylian/lsp.lua
--- Registers hylian-lsp using vim.lsp.config (Neovim 0.11+).
--- Falls back to a plain vim.lsp.start() autocmd on Neovim 0.10.
+-- Enables hylian-lsp using the native vim.lsp API (Neovim 0.11+).
+-- Falls back to vim.lsp.start() on Neovim 0.10.
 -- Does NOT require nvim-lspconfig.
+--
+-- The base server config lives in lsp/hylian_lsp.lua (auto-discovered by
+-- Neovim from the plugin's runtimepath). setup() only needs to merge any
+-- user overrides on top of it and call vim.lsp.enable().
 
 local M = {}
 
@@ -16,7 +20,54 @@ local defaults = {
   on_attach    = nil,
 }
 
--- ── Helper: start the LSP on a single buffer ────────────────────────────────
+-- ── Neovim 0.11+ path: vim.lsp.config + lsp/hylian_lsp.lua ──────────────────
+-- lsp/hylian_lsp.lua (shipped with this plugin) is auto-discovered by Neovim
+-- and provides the base config. Here we only apply user overrides on top.
+
+local function setup_native(opts)
+  if not vim.lsp.config or not vim.lsp.enable then
+    return false
+  end
+
+  -- Build override table: only include keys the user actually changed from
+  -- defaults so we don't clobber the lsp/ base config unnecessarily.
+  local overrides = {}
+  if opts.cmd ~= defaults.cmd then
+    overrides.cmd = opts.cmd
+  end
+  if opts.root_markers ~= defaults.root_markers then
+    overrides.root_markers = opts.root_markers
+  end
+  if opts.capabilities then
+    overrides.capabilities = opts.capabilities
+  end
+  if opts.on_attach then
+    overrides.on_attach = opts.on_attach
+  end
+
+  if next(overrides) then
+    vim.lsp.config("hylian_lsp", overrides)
+  end
+
+  vim.lsp.enable("hylian_lsp")
+
+  -- vim.lsp.enable only fires on *future* FileType events.
+  -- Retroactively attach to any hylian buffers already open.
+  vim.schedule(function()
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(buf)
+         and vim.bo[buf].filetype == "hylian" then
+        vim.api.nvim_buf_call(buf, function()
+          vim.cmd("doautocmd FileType hylian")
+        end)
+      end
+    end
+  end)
+
+  return true
+end
+
+-- ── Neovim 0.10 fallback: vim.lsp.start() via FileType autocmd ───────────────
 
 local function start_for_buf(buf, opts)
   vim.lsp.start({
@@ -34,42 +85,6 @@ local function start_for_buf(buf, opts)
   }, { bufnr = buf })
 end
 
--- ── Neovim 0.11+ path: vim.lsp.config ────────────────────────────────────────
-
-local function setup_native(opts)
-  if not vim.lsp.config then
-    return false
-  end
-
-  vim.lsp.config("hylian_lsp", {
-    cmd          = opts.cmd,
-    filetypes    = { "hylian" },
-    root_markers = opts.root_markers,
-    capabilities = opts.capabilities,
-    on_attach    = opts.on_attach,
-  })
-
-  vim.lsp.enable("hylian_lsp")
-
-  -- vim.lsp.enable only fires on *future* FileType events.
-  -- If a .hy buffer is already open (lazy-loading), attach now.
-  vim.schedule(function()
-    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-      if vim.api.nvim_buf_is_loaded(buf)
-         and vim.bo[buf].filetype == "hylian" then
-        -- Re-trigger FileType so vim.lsp.enable picks it up
-        vim.api.nvim_buf_call(buf, function()
-          vim.cmd("doautocmd FileType hylian")
-        end)
-      end
-    end
-  end)
-
-  return true
-end
-
--- ── Neovim 0.10 fallback: vim.lsp.start() via FileType autocmd ───────────────
-
 local function setup_autocmd(opts)
   vim.api.nvim_create_autocmd("FileType", {
     group   = vim.api.nvim_create_augroup("HylianLsp", { clear = true }),
@@ -79,7 +94,6 @@ local function setup_autocmd(opts)
     end,
   })
 
-  -- Retroactively attach to any hylian buffers already open
   vim.schedule(function()
     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
       if vim.api.nvim_buf_is_loaded(buf)
