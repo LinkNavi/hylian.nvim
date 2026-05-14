@@ -3,15 +3,12 @@
 --   1.  :TSInstall hylian   works  (nvim-treesitter integration)
 --   2.  Syntax highlighting works  (vim.treesitter built-in)
 --
--- Supports both the legacy nvim-treesitter API (get_parser_configs) and the
--- modern post-refactor nvim-treesitter (2024+), as well as Neovim ≥ 0.10
--- without nvim-treesitter at all.
---
--- Key challenge with modern nvim-treesitter:
---   install() calls reload_parsers() which wipes package.loaded and
---   re-requires the parsers module from disk.  Any runtime injection is lost.
---   We solve this by hooking the User:TSUpdate autocmd to re-inject after
---   every reload, AND by injecting immediately on setup().
+-- Two entry points:
+--   register()  — called from plugin/hylian.lua at load time.
+--                  Injects the parser into nvim-treesitter's table and
+--                  hooks TSUpdate so the injection survives reloads.
+--   setup()     — called from init.lua during setup().
+--                  Kicks off highlighting on already-open buffers.
 
 local M = {}
 
@@ -24,7 +21,6 @@ local INSTALL_INFO = {
 }
 
 -- ── Inject into the parsers table ────────────────────────────────────────────
--- Works for both legacy (get_parser_configs()) and modern (plain table) APIs.
 
 local function inject_parser()
   local ok, parsers = pcall(require, "nvim-treesitter.parsers")
@@ -48,7 +44,7 @@ local function inject_parser()
   if type(parsers) == "table" and not parsers.hylian then
     parsers.hylian = {
       install_info = INSTALL_INFO,
-      tier         = 3,  -- "community/third-party"
+      tier         = 3,
     }
   end
 
@@ -63,31 +59,14 @@ local function register_with_neovim()
   end
 end
 
--- ── Enable highlighting for the current buffer ──────────────────────────────
+-- ── register(): called early at plugin load time ─────────────────────────────
 
-local function enable_highlight_current_buf()
-  local buf = vim.api.nvim_get_current_buf()
-  if vim.bo[buf].filetype ~= "hylian" then
-    return
-  end
-
-  local lang_ok = pcall(vim.treesitter.language.inspect, "hylian")
-  if not lang_ok then
-    return   -- parser .so not installed yet; user still needs :TSInstall
-  end
-
-  pcall(vim.treesitter.start, buf, "hylian")
-end
-
--- ── Public ───────────────────────────────────────────────────────────────────
-
-function M.setup()
-  -- Inject now
+function M.register()
   inject_parser()
   register_with_neovim()
 
   -- Re-inject every time nvim-treesitter reloads its parser list.
-  -- Modern nvim-treesitter fires User:TSUpdate after reload_parsers().
+  -- Modern nvim-treesitter fires User:TSUpdate from reload_parsers().
   vim.api.nvim_create_autocmd("User", {
     pattern  = "TSUpdate",
     group    = vim.api.nvim_create_augroup("HylianTSInject", { clear = true }),
@@ -95,9 +74,27 @@ function M.setup()
       inject_parser()
     end,
   })
+end
 
-  -- Kick-start highlighting on already-open buffer
-  vim.schedule(enable_highlight_current_buf)
+-- ── setup(): called later from init.lua ──────────────────────────────────────
+
+function M.setup()
+  -- In case register() hasn't run yet (shouldn't happen, but be safe)
+  inject_parser()
+  register_with_neovim()
+
+  -- Kick-start highlighting on already-open hylian buffers
+  vim.schedule(function()
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(buf)
+         and vim.bo[buf].filetype == "hylian" then
+        local lang_ok = pcall(vim.treesitter.language.inspect, "hylian")
+        if lang_ok then
+          pcall(vim.treesitter.start, buf, "hylian")
+        end
+      end
+    end
+  end)
 end
 
 return M

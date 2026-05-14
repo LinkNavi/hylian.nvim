@@ -23,7 +23,10 @@ Neovim support for the [Hylian](https://hylian-lang.com) programming language.
 ### Minimal — zero config
 
 ```lua
-{ "LinkNavi/hylian.nvim" }
+{
+  "LinkNavi/hylian.nvim",
+  dependencies = { "nvim-treesitter/nvim-treesitter" },
+}
 ```
 
 Then install the tree-sitter parser once inside Neovim:
@@ -35,6 +38,11 @@ Then install the tree-sitter parser once inside Neovim:
 That's it. As long as `hylian-lsp` is on `$PATH` and nvim-treesitter is
 installed, LSP and highlighting will work automatically on any `.hy` file.
 
+> **Note:** Do *not* use `ft = "hylian"` to lazy-load this plugin if you
+> have `"hylian"` in your nvim-treesitter `ensure_installed` / `install()`
+> list.  The parser must be registered before nvim-treesitter tries to
+> install it, which means the plugin must load at startup.
+
 ---
 
 ### Full config with keymaps and nvim-cmp
@@ -44,7 +52,6 @@ Add this to your lazy plugin list (e.g. in `~/.config/nvim/lua/plugins/hylian.lu
 ```lua
 return {
   "LinkNavi/hylian.nvim",
-  ft = "hylian",   -- only load when a .hy file is opened
   dependencies = {
     "nvim-treesitter/nvim-treesitter",
   },
