@@ -16,6 +16,24 @@ local defaults = {
   on_attach    = nil,
 }
 
+-- ── Helper: start the LSP on a single buffer ────────────────────────────────
+
+local function start_for_buf(buf, opts)
+  vim.lsp.start({
+    name         = "hylian-lsp",
+    cmd          = opts.cmd,
+    root_dir     = vim.fs.dirname(
+      vim.fs.find(opts.root_markers, {
+        upward = true,
+        path   = vim.api.nvim_buf_get_name(buf),
+      })[1]
+    ),
+    capabilities = opts.capabilities
+      or vim.lsp.protocol.make_client_capabilities(),
+    on_attach    = opts.on_attach,
+  }, { bufnr = buf })
+end
+
 -- ── Neovim 0.11+ path: vim.lsp.config ────────────────────────────────────────
 
 local function setup_native(opts)
@@ -32,6 +50,21 @@ local function setup_native(opts)
   })
 
   vim.lsp.enable("hylian_lsp")
+
+  -- vim.lsp.enable only fires on *future* FileType events.
+  -- If a .hy buffer is already open (lazy-loading), attach now.
+  vim.schedule(function()
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(buf)
+         and vim.bo[buf].filetype == "hylian" then
+        -- Re-trigger FileType so vim.lsp.enable picks it up
+        vim.api.nvim_buf_call(buf, function()
+          vim.cmd("doautocmd FileType hylian")
+        end)
+      end
+    end
+  end)
+
   return true
 end
 
@@ -41,19 +74,20 @@ local function setup_autocmd(opts)
   vim.api.nvim_create_autocmd("FileType", {
     group   = vim.api.nvim_create_augroup("HylianLsp", { clear = true }),
     pattern = "hylian",
-    callback = function()
-      vim.lsp.start({
-        name         = "hylian-lsp",
-        cmd          = opts.cmd,
-        root_dir     = vim.fs.dirname(
-          vim.fs.find(opts.root_markers, { upward = true })[1]
-        ),
-        capabilities = opts.capabilities
-          or vim.lsp.protocol.make_client_capabilities(),
-        on_attach    = opts.on_attach,
-      })
+    callback = function(ev)
+      start_for_buf(ev.buf, opts)
     end,
   })
+
+  -- Retroactively attach to any hylian buffers already open
+  vim.schedule(function()
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(buf)
+         and vim.bo[buf].filetype == "hylian" then
+        start_for_buf(buf, opts)
+      end
+    end
+  end)
 end
 
 -- ── Public ────────────────────────────────────────────────────────────────────
