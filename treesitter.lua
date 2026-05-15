@@ -22,7 +22,7 @@ return {
         require("nvim-treesitter.parsers").hylian = {
           install_info = {
             url = "https://github.com/LinkNavi/tree-sitter-hylian",
-            revision = "3a34a730d5352e8657f3d8a1dd0e566811826858",
+            revision = "54ac4308679476809129412ab0f56717313be9aa",
             files = { "src/parser.c" },
             branch = "main",
             queries = "queries",
@@ -35,7 +35,7 @@ return {
     require("nvim-treesitter.parsers").hylian = {
       install_info = {
         url = "https://github.com/LinkNavi/tree-sitter-hylian",
-        revision = "3a34a730d5352e8657f3d8a1dd0e566811826858",
+        revision = "54ac4308679476809129412ab0f56717313be9aa",
         files = { "src/parser.c" },
         branch = "main",
         queries = "queries",
